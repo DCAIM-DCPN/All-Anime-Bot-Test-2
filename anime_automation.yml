@@ -1,0 +1,45 @@
+
+name: Anime Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      anime_name:
+        description: 'The name of the anime to process'
+        required: true
+        type: string
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y aria2 ffmpeg
+        pip install requests
+
+    - name: Create bot_data directory
+      run: mkdir -p bot_data
+
+    - name: Run main.py
+      env:
+        MANUS_API_KEY: ${{ secrets.MANUS_API_KEY }}
+      run: python main.py --anime "${{ github.event.inputs.anime_name }}"
+
+    - name: Commit and push changes
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add bot_data/
+        git commit -m "Update bot_data/ state file" || echo "No changes to commit"
+        git push
