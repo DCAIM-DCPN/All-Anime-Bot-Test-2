@@ -28,18 +28,26 @@ jobs:
         sudo apt-get install -y aria2 ffmpeg
         pip install requests
 
-    - name: Create bot_data directory
-      run: mkdir -p bot_data
+    - name: Create necessary directories
+      run: |
+        mkdir -p bot_data
+        mkdir -p "Anime Code/${{ github.event.inputs.anime_name }}"
 
     - name: Run main.py
       env:
         MANUS_API_KEY: ${{ secrets.MANUS_API_KEY }}
       run: python main.py --anime "${{ github.event.inputs.anime_name }}"
 
+    - name: Upload executor artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: executor-${{ github.event.inputs.anime_name }}
+        path: "Anime Code/${{ github.event.inputs.anime_name }}/executor.py"
+
     - name: Commit and push changes
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add bot_data/
-        git commit -m "Update bot_data/ state file" || echo "No changes to commit"
+        git add bot_data/ "Anime Code/"
+        git commit -m "Update state and executor for ${{ github.event.inputs.anime_name }}" || echo "No changes to commit"
         git push
