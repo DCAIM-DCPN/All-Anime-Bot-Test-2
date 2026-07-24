@@ -69,23 +69,48 @@ def call_manus_api(prompt, schema):
     }
 
     try:
+        # Create Task - Correct response parsing based on docs
         res = requests.post(f"{MANUS_API_BASE_URL}/v2/task.create", headers=headers, json=payload)
         res.raise_for_status()
-        task_id = res.json()["task"]["task_id"]
+        res_data = res.json()
+        task_id = res_data.get("task_id")
+        if not task_id:
+            # Fallback if structure is different
+            task_id = res_data.get("task", {}).get("task_id")
+            
+        if not task_id:
+            raise Exception(f"Failed to get task_id from response: {res_data}")
         
+        print(f"Task created: {task_id}")
+        
+        # Poll Task
         while True:
             time.sleep(15)
-            detail = requests.get(f"{MANUS_API_BASE_URL}/v2/task.detail?task_id={task_id}", headers=headers).json()
-            status = detail["task"]["status"]
+            detail_res = requests.get(f"{MANUS_API_BASE_URL}/v2/task.detail?task_id={task_id}", headers=headers)
+            detail_res.raise_for_status()
+            detail = detail_res.json()
+            
+            # task.detail returns a 'task' object
+            task_obj = detail.get("task", {})
+            status = task_obj.get("status")
+            
             if status == "stopped":
+                print("Task finished.")
                 break
             if status == "failed":
                 raise Exception("Manus task failed.")
+            print(f"Task status: {status}")
 
-        msgs = requests.get(f"{MANUS_API_BASE_URL}/v2/task.listMessages?task_id={task_id}", headers=headers).json()
-        for msg in msgs["messages"]:
+        # Get Result
+        msgs_res = requests.get(f"{MANUS_API_BASE_URL}/v2/task.listMessages?task_id={task_id}", headers=headers)
+        msgs_res.raise_for_status()
+        msgs = msgs_res.json()
+        
+        for msg in msgs.get("messages", []):
             if msg.get("type") == "structured_output_result":
                 return msg["structured_output_result"]["value"]["executor_code"]
+        
+        raise Exception("No structured output found.")
     except Exception as e:
         print(f"Manus API Error: {e}")
         sys.exit(1)
